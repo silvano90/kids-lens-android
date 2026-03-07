@@ -5,6 +5,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import io
+import re
 
 # Configurazione API Key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -36,11 +37,19 @@ Non aggiungere testo prima o dopo il JSON.
 """
 
 def try_gemini_analysis(img):
-    """Esegue la chiamata a Gemini e tenta il parsing del JSON"""
     model = genai.GenerativeModel('gemini-1.5-flash')
+    # Forziamo il modello a essere sintetico
     response = model.generate_content([PROMPT_KIDS, img])
     
-    # Pulizia della risposta (rimuove eventuali ```json ... ```)
+    print(f"DEBUG - Risposta grezza Gemini: {response.text}") # Log su Railway
+    
+    # Cerchiamo il pattern JSON { ... } nel testo usando Regex
+    match = re.search(r'\{.*\}', response.text, re.DOTALL)
+    if match:
+        json_str = match.group(0)
+        return json.loads(json_str)
+    
+    # Se la regex fallisce, proviamo il metodo standard
     clean_text = response.text.replace('```json', '').replace('```', '').strip()
     return json.loads(clean_text)
 
