@@ -3,7 +3,7 @@ import io
 import json
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from google import genai # La libreria nuova!
+from google import genai
 from google.genai import types
 from PIL import Image
 
@@ -16,61 +16,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configurazione Client Moderno
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     try:
-        # 1. Preparazione immagine
         image_bytes = await file.read()
         img = Image.open(io.BytesIO(image_bytes))
 
-        # 2. Configurazione generazione (Obblighiamo il JSON)
-        # Usiamo il modello Flash che è velocissimo
-        model_id = "gemini-2.5-flash" 
-        
-        config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema={
-                "type": "OBJECT",
-                "properties": {
-                    "tipo_contenuto": {"type": "STRING"},
-                    "dettagli": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "titolo": {"type": "STRING"},
-                            "eta_consigliata": {"type": "STRING"},
-                            "riassunto": {"type": "STRING"}
-                        }
-                    },
-                    "alert_sicurezza": {"type": "STRING"}
-                }
-            }
-        )
+        # SCHEMA RIGIDO: Forza Gemini a rispondere con numeri e stringhe pulite
+        response_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "tipo_contenuto": {"type": "STRING"},
+                "dettagli": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "titolo": {"type": "STRING"},
+                        "eta_consigliata": {"type": "STRING", "description": "Formato fisso: '3+', '6+', '12+', '18+'"},
+                        "riassunto": {"type": "STRING"},
+                        "cover_url": {"type": "STRING", "description": "URL diretto dell'immagine ufficiale del titolo (locandina)"}
+                    }
+                },
+                "ratings": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "violenza": {"type": "INTEGER", "description": "0-5"},
+                        "linguaggio": {"type": "INTEGER", "description": "0-5"},
+                        "inclusivita": {"type": "INTEGER", "description": "0-5"},
+                        "paura": {"type": "INTEGER", "description": "0-5"}
+                    }
+                },
+                "alert_sicurezza": {"type": "STRING"}
+            },
+            "required": ["tipo_contenuto", "dettagli", "ratings"]
+        }
 
-        print("--- INVIO RICHIESTA A GEMINI 2.0 ---")
-        
-        # 3. Chiamata
+        # PROMPT STRATEGICO
+        prompt = """
+        Sei un esperto di media per bambini. Identifica il contenuto nell'immagine.
+        1. Consulta mentalmente database come Common Sense Media o IMDB.
+        2. Restituisci l'età consigliata SOLO come una delle seguenti etichette: '3+', '6+', '12+', '18+'.
+        3. Per 'cover_url', trova l'URL statico della locandina o della cover ufficiale.
+        4. Valuta da 0 a 5 i driver di sicurezza (violenza, linguaggio, inclusivita, paura).
+        """
+
         response = client.models.generate_content(
-            model=model_id,
-            contents=["Analizza questa immagine per un'app di genitori e bambini.", img],
-            config=config
+            model="gemini-2.0-flash",
+            contents=[prompt, img],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=response_schema,
+                temperature=0.2 # Più basso per risposte meno creative e più precise
+            )
         )
 
-        # 4. Log per debug (Quello che volevi vedere tu)
-        print("******************************************")
-        print("RISPOSTA INTEGRALE GEMINI:")
+        print("--- RISPOSTA GEMINI ANALYTICS ---")
         print(response.text)
-        print("******************************************")
-
+        
         return json.loads(response.text)
 
     except Exception as e:
-        print(f"ERRORE CRITICO: {str(e)}")
+        print(f"ERRORE: {str(e)}")
         return {"error": str(e)}, 500
-
-@app.get("/")
-def health():
-    return {"status": "online", "model": "gemini-2.5-flash"}
