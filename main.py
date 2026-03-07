@@ -55,10 +55,11 @@ async def analyze_image(file: UploadFile = File(...)):
         # PROMPT STRATEGICO
         prompt = """
         Sei un esperto di media per bambini. Identifica il contenuto nell'immagine.
-        1. Consulta mentalmente database come Common Sense Media o IMDB.
-        2. Restituisci l'età consigliata SOLO come una delle seguenti etichette: '3+', '6+', '12+', '18+'.
-        3. Per 'cover_url', trova l'URL statico della locandina o della cover ufficiale.
-        4. Valuta da 0 a 5 i driver di sicurezza (violenza, linguaggio, inclusivita, paura).
+        1. Consulta database come Common Sense Media o IMDB.
+        2. Restituisci l'età consigliata SOLO come: '3+', '6+', '12+', '18+'.
+        3. Per 'cover_url', trova un URL DIRETTO (che finisce in .jpg o .png) di una locandina ufficiale. 
+        Se non lo trovi, lascia la stringa vuota "".
+        4. Valuta da 0 a 5: violenza, linguaggio, inclusivita, paura.
         """
 
         response = client.models.generate_content(
