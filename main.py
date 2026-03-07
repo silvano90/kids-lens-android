@@ -62,7 +62,7 @@ async def analyze_image(file: UploadFile = File(...)):
         """
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3.1-flash-lite",
             contents=[prompt, img],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
