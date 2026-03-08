@@ -1,82 +1,74 @@
 import os
-import io
 import json
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from google import genai
-from google.genai import types
-from PIL import Image
+import requests
+from bs4 import BeautifulSoup
+from fastapi import FastAPI, File, UploadFile
+from google import generativeai as genai
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configurazione Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Funzione per lo Scraping della Cover
+def get_imdb_cover(imdb_id):
+    if not imdb_id or imdb_id == "n/a":
+        return None
+    try:
+        url = f"https://www.imdb.com/title/{imdb_id}/"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0"}
+        response = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        image_tag = soup.find("meta", property="og:image")
+        return image_tag["content"] if image_tag else None
+    except:
+        return None
 
 @app.post("/analyze")
-async def analyze_image(file: UploadFile = File(...)):
-    try:
-        image_bytes = await file.read()
-        img = Image.open(io.BytesIO(image_bytes))
+async def analyze_cartone(file: UploadFile = File(...)):
+    # Leggiamo l'immagine
+    image_data = await file.read()
+    
+    # --- STEP 1: IDENTIFICAZIONE ---
+    # Chiediamo a Gemini solo il titolo per essere veloci
+    id_prompt = "Identifica il cartone animato o film in questa immagine. Restituisci solo il titolo e l'anno."
+    id_response = model.generate_content([id_prompt, {"mime_type": "image/jpeg", "data": image_data}])
+    titolo_rilevato = id_response.text.strip()
+    
+    # --- STEP 2: ANALISI STRUTTURATA (Il Super-Prompt Blindato) ---
+    analysis_prompt = f"""
+    Analizza il contenuto: {titolo_rilevato}.
+    Usa come fonti Common Sense Media e IMDb.
+    Rispondi ESCLUSIVAMENTE in formato JSON con questa struttura:
+    {{
+      "id_imdb": "ID (es. tt1234567)",
+      "titolo_ufficiale": "Titolo",
+      "target_eta": "Età consigliata",
+      "rating_generale": 0-100,
+      "pilastri": {{
+        "paura": {{"livello": "Basso/Medio/Alto", "perche": "..."}},
+        "lutto": {{"livello": "Basso/Medio/Alto", "perche": "..."}},
+        "capitalismo": {{"livello": "Basso/Medio/Alto", "perche": "..."}},
+        "bullismo": {{"livello": "Basso/Medio/Alto", "perche": "..."}},
+        "linguaggio": {{"livello": "Basso/Medio/Alto", "perche": "..."}},
+        "sostanze": {{"livello": "Basso/Medio/Alto", "perche": "..."}}
+      }},
+      "fonti": {{"csm": "riassunto esperti", "imdb": "riassunto genitori"}},
+      "verdetto_finale": "Breve sintesi",
+      "consiglio_pratico": "Domanda per il bambino"
+    }}
+    Nota: Sii equilibrato. Non penalizzare contenuti educativi profondi.
+    """
+    
+    analysis_response = model.generate_content(analysis_prompt)
+    
+    # Pulizia della risposta (a volte Gemini mette i backticks ```json)
+    json_text = analysis_response.text.replace("```json", "").replace("```", "").strip()
+    result = json.loads(json_text)
+    
+    # --- STEP 3: SCRAPING COVER ---
+    cover_url = get_imdb_cover(result.get("id_imdb"))
+    result["cover_url"] = cover_url if cover_url else "[https://via.placeholder.com/300x450?text=No+Cover](https://via.placeholder.com/300x450?text=No+Cover)"
 
-        # SCHEMA RIGIDO: Forza Gemini a rispondere con numeri e stringhe pulite
-        response_schema = {
-            "type": "OBJECT",
-            "properties": {
-                "tipo_contenuto": {"type": "STRING"},
-                "dettagli": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "titolo": {"type": "STRING"},
-                        "eta_consigliata": {"type": "STRING", "description": "Formato fisso: '3+', '6+', '12+', '18+'"},
-                        "riassunto": {"type": "STRING"},
-                        "cover_url": {"type": "STRING", "description": "URL diretto dell'immagine ufficiale del titolo (locandina)"}
-                    }
-                },
-                "ratings": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "violenza": {"type": "INTEGER", "description": "0-5"},
-                        "linguaggio": {"type": "INTEGER", "description": "0-5"},
-                        "inclusivita": {"type": "INTEGER", "description": "0-5"},
-                        "paura": {"type": "INTEGER", "description": "0-5"}
-                    }
-                },
-                "alert_sicurezza": {"type": "STRING"}
-            },
-            "required": ["tipo_contenuto", "dettagli", "ratings"]
-        }
-
-        # PROMPT STRATEGICO
-        prompt = """
-        Sei un esperto di media per bambini. Identifica il contenuto nell'immagine.
-        1. Consulta database come Common Sense Media o IMDB.
-        2. Restituisci l'età consigliata SOLO come: '3+', '6+', '12+', '18+'.
-        3. Per 'cover_url', trova un URL DIRETTO (che finisce in .jpg o .png) di una locandina ufficiale. 
-        Se non lo trovi, lascia la stringa vuota "".
-        4. Valuta da 0 a 5: violenza, linguaggio, inclusivita, paura.
-        """
-
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[prompt, img],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=response_schema,
-                temperature=0.2 # Più basso per risposte meno creative e più precise
-            )
-        )
-
-        print("--- RISPOSTA GEMINI ANALYTICS ---")
-        print(response.text)
-        
-        return json.loads(response.text)
-
-    except Exception as e:
-        print(f"ERRORE: {str(e)}")
-        return {"error": str(e)}, 500
+    return result
