@@ -20,28 +20,47 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # Prompt specifico per ottenere la struttura che serve al tuo front
+        # --- IL MEGA PROMPT RECUPERATO E POTENZIATO ---
         prompt = """
-        Analizza questa immagine (copertina di libro/film/gioco) e restituisci un JSON con questa struttura:
+        Sei un analista esperto di contenuti multimediali per famiglie. 
+        Il tuo compito è identificare con precisione assoluta l'opera nell'immagine.
+
+        ### PROTOCOLLO DI ANALISI:
+        1. IDENTIFICAZIONE: Cerca il titolo esatto su IMDb. Distingui categoricamente tra Videogioco, Film, Serie TV (Cartone) o Libro. 
+           - Se vedi interfacce (HP, tasti, menu), è un VIDEOGIOCO.
+           - Se vedi uno stile animato senza elementi di gioco, è un CARTONE/FILM.
+        2. RICERCA SICUREZZA: Consulta i parametri di Common Sense Media per l'opera identificata.
+        3. RATING (Scala 0-5):
+           - Violenza: Presenza di scontri, sangue o aggressività.
+           - Linguaggio: Parole scurrili o concetti inappropriati.
+           - Inclusività: Rappresentazione di diversità e messaggi positivi.
+           - Paura: Scene buie, mostri o tensione psicologica.
+
+        ### REGOLE DI RISPOSTA:
+        - Restituisci ESCLUSIVAMENTE un JSON.
+        - Sii oggettivo e severo sui rating.
+        - Se non sei sicuro, indica il contenuto più probabile basandoti sui dati IMDb.
+
+        ### STRUTTURA JSON RICHIESTA:
         {
-            "tipo_contenuto": "film" o "libro" o "gioco",
+            "tipo_contenuto": "cartone animato", 
             "dettagli": {
-                "titolo": "Titolo originale",
-                "eta_consigliata": "es. 6+",
-                "riassunto": "Breve descrizione",
-                "cover_url": null
+                "titolo": "TITOLO_UFFICIALE_IMDB",
+                "eta_consigliata": "X+_BASATA_SU_COMMON_SENSE",
+                "riassunto": "DESCRIZIONE_BASATA_SU_COMMON_SENSE",
+                "cover_url": "URL_LOCANDINA_SE_DISPONIBILE"
             },
             "ratings": {
-                "violenza": 0-5,
-                "linguaggio": 0-5,
-                "inclusivita": 0-5,
-                "paura": 0-5
+                "violenza": 0,
+                "linguaggio": 0,
+                "inclusivita": 0,
+                "paura": 0
             },
-            "alert_sicurezza": "Eventuali avvisi"
+            "alert_sicurezza": "DETTAGLI_SUI_RISCHI_SPECIFICI"
         }
         """
 
-        # Chiamata con generazione JSON forzata
+        # Esecuzione con Gemini 2.5 Flash Lite
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[
@@ -49,18 +68,15 @@ async def analyze_image(file: UploadFile = File(...)):
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
             ],
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                temperature=0.2 # Più basso per essere meno "creativo" e più preciso
             )
         )
 
-        # Converte la stringa JSON di Gemini in un dizionario Python
-        import json
-        analysis_result = json.loads(response.text)
-        
-        return analysis_result
+        return json.loads(response.text)
 
     except Exception as e:
-        print(f"Errore: {e}")
+        print(f"Errore nel server: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
