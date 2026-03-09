@@ -18,32 +18,49 @@ def read_root():
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     try:
-        # Lettura del file caricato
         image_data = await file.read()
         
-        # Prompt per l'analisi (personalizzalo come preferisci)
-        prompt = "Analizza questa immagine in dettaglio e descrivi cosa vedi."
+        # Prompt specifico per ottenere la struttura che serve al tuo front
+        prompt = """
+        Analizza questa immagine (copertina di libro/film/gioco) e restituisci un JSON con questa struttura:
+        {
+            "tipo_contenuto": "film" o "libro" o "gioco",
+            "dettagli": {
+                "titolo": "Titolo originale",
+                "eta_consigliata": "es. 6+",
+                "riassunto": "Breve descrizione",
+                "cover_url": null
+            },
+            "ratings": {
+                "violenza": 0-5,
+                "linguaggio": 0-5,
+                "inclusivita": 0-5,
+                "paura": 0-5
+            },
+            "alert_sicurezza": "Eventuali avvisi"
+        }
+        """
 
-        # Chiamata al modello 2.5 Flash Lite
-        # Nota: Se 'gemini-2.5-flash-lite' desse 404, prova 'gemini-2.0-flash-lite'
+        # Chiamata con generazione JSON forzata
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[
                 prompt,
-                types.Part.from_bytes(
-                    data=image_data,
-                    mime_type=file.content_type
-                )
-            ]
+                types.Part.from_bytes(data=image_data, mime_type=file.content_type)
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
         )
 
-        return {
-            "filename": file.filename,
-            "analysis": response.text
-        }
+        # Converte la stringa JSON di Gemini in un dizionario Python
+        import json
+        analysis_result = json.loads(response.text)
+        
+        return analysis_result
 
     except Exception as e:
-        print(f"Errore durante l'analisi: {e}")
+        print(f"Errore: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
