@@ -7,61 +7,43 @@ import uvicorn
 
 app = FastAPI()
 
-# Configurazione Client con la nuova libreria
-# Assicurati che la variabile d'ambiente GEMINI_API_KEY sia impostata su Railway
+# Configurazione Client
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
-
-@app.get("/")
-def read_root():
-    return {"status": "online", "model": "gemini-2.5-flash-lite"}
 
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # --- IL MEGA PROMPT RECUPERATO E POTENZIATO ---
+        # --- MEGA PROMPT OTTIMIZZATO PER USARE LA FOTO SCATTATA ---
         prompt = """
-        Sei un analista esperto di contenuti multimediali per famiglie. 
-        Il tuo compito è identificare con precisione assoluta l'opera nell'immagine.
+        Sei un analista esperto di contenuti multimediali. Identifica l'opera nell'immagine.
+        
+        PROTOCOLLO:
+        1. IDENTIFICAZIONE: Usa IMDb per confermare titolo e tipo (Videogioco, Film, Cartone, Libro).
+        2. SICUREZZA: Usa Common Sense Media per i rating 0-5.
+        3. FOTO: Non cercare URL di copertine esterne. Imposta sempre cover_url a null.
 
-        ### PROTOCOLLO DI ANALISI:
-        1. IDENTIFICAZIONE: Cerca il titolo esatto su IMDb. Distingui categoricamente tra Videogioco, Film, Serie TV (Cartone) o Libro. 
-           - Se vedi interfacce (HP, tasti, menu), è un VIDEOGIOCO.
-           - Se vedi uno stile animato senza elementi di gioco, è un CARTONE/FILM.
-        2. RICERCA SICUREZZA: Consulta i parametri di Common Sense Media per l'opera identificata.
-        3. RATING (Scala 0-5):
-           - Violenza: Presenza di scontri, sangue o aggressività.
-           - Linguaggio: Parole scurrili o concetti inappropriati.
-           - Inclusività: Rappresentazione di diversità e messaggi positivi.
-           - Paura: Scene buie, mostri o tensione psicologica.
-
-        ### REGOLE DI RISPOSTA:
-        - Restituisci ESCLUSIVAMENTE un JSON.
-        - Sii oggettivo e severo sui rating.
-        - Se non sei sicuro, indica il contenuto più probabile basandoti sui dati IMDb.
-
-        ### STRUTTURA JSON RICHIESTA:
+        RISPONDI SOLO IN JSON:
         {
-            "tipo_contenuto": "cartone animato", 
+            "tipo_contenuto": "string", 
             "dettagli": {
-                "titolo": "TITOLO_UFFICIALE_IMDB",
-                "eta_consigliata": "X+_BASATA_SU_COMMON_SENSE",
-                "riassunto": "DESCRIZIONE_BASATA_SU_COMMON_SENSE",
-                "cover_url": "URL_LOCANDINA_SE_DISPONIBILE"
+                "titolo": "TITOLO_IMDB",
+                "eta_consigliata": "X+",
+                "riassunto": "DESCRIZIONE_COMMON_SENSE",
+                "cover_url": null
             },
             "ratings": {
-                "violenza": 0,
-                "linguaggio": 0,
-                "inclusivita": 0,
-                "paura": 0
+                "violenza": 0-5,
+                "linguaggio": 0-5,
+                "inclusivita": 0-5,
+                "paura": 0-5
             },
-            "alert_sicurezza": "DETTAGLI_SUI_RISCHI_SPECIFICI"
+            "alert_sicurezza": "NOTE_DI_SICUREZZA"
         }
         """
 
-        # Esecuzione con Gemini 2.5 Flash Lite
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[
@@ -70,17 +52,16 @@ async def analyze_image(file: UploadFile = File(...)):
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.2 # Più basso per essere meno "creativo" e più preciso
+                temperature=0.1
             )
         )
 
         return json.loads(response.text)
 
     except Exception as e:
-        print(f"Errore nel server: {e}")
+        print(f"Errore: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    # Railway usa la porta 8080 di default
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
