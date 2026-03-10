@@ -7,7 +7,6 @@ import uvicorn
 
 app = FastAPI()
 
-# Configurazione Client
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -16,22 +15,24 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # --- MEGA PROMPT OTTIMIZZATO PER USARE LA FOTO SCATTATA ---
+        # --- PROMPT BLINDATO: NO VIDEOGIOCHI + DEEP SEARCH ---
         prompt = """
-        Sei un analista esperto di contenuti multimediali. Identifica l'opera nell'immagine.
-        
-        PROTOCOLLO:
-        1. IDENTIFICAZIONE: Usa IMDb per confermare titolo e tipo (Videogioco, Film, Cartone, Libro).
-        2. SICUREZZA: Usa Common Sense Media per i rating 0-5.
-        3. FOTO: Non cercare URL di copertine esterne. Imposta sempre cover_url a null.
+        IDENTIFICAZIONE OBBLIGATORIA: Analizza l'immagine e identifica esclusivamente Cartoni Animati, Serie TV o Film. 
+        IGNORA CATEGORICAMENTE l'opzione 'Videogioco'. Se l'opera esiste in più formati, analizza la versione ANIMATA.
 
-        RISPONDI SOLO IN JSON:
+        PROCESSO DI VERIFICA (IMDb & Common Sense Media):
+        1. Identifica il titolo esatto.
+        2. Cerca attivamente le 'User Reviews' su IMDb e la sezione 'What Parents Need to Know' su Common Sense Media.
+        3. CASI CRITICI: Cerca specificamente menzioni di episodi speciali, scene disturbanti o contenuti 'horror' (es. Bread Barbershop ha episodi con atmosfere horror che non compaiono nella descrizione standard).
+        4. Se trovi segnalazioni di genitori su scene di paura, il rating 'paura' deve riflettere il picco massimo dell'opera, non la media.
+
+        STRUTTURA JSON (NON AGGIUNGERE ALTRO TESTO):
         {
-            "tipo_contenuto": "string", 
+            "tipo_contenuto": "cartone animato" | "film", 
             "dettagli": {
-                "titolo": "TITOLO_IMDB",
+                "titolo": "TITOLO_UFFICIALE_IMDB",
                 "eta_consigliata": "X+",
-                "riassunto": "DESCRIZIONE_COMMON_SENSE",
+                "riassunto": "Sintesi che includa avvertimenti sulle puntate particolari",
                 "cover_url": null
             },
             "ratings": {
@@ -40,7 +41,7 @@ async def analyze_image(file: UploadFile = File(...)):
                 "inclusivita": 0-5,
                 "paura": 0-5
             },
-            "alert_sicurezza": "NOTE_DI_SICUREZZA"
+            "alert_sicurezza": "DETTAGLIA QUI LE PUNTATE O LE SCENE SPECIFICHE SEGNALATE DAI GENITORI (es. scene horror o tensione)"
         }
         """
 
@@ -52,7 +53,7 @@ async def analyze_image(file: UploadFile = File(...)):
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.1
+                temperature=0.0 # Forza la massima precisione e zero creatività
             )
         )
 
