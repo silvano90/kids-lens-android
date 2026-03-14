@@ -4,8 +4,17 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from google import genai
 from google.genai import types
 import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Aggiunto CORS per evitare blocchi con l'App
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -15,7 +24,7 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # --- PROMPT BLINDATO: NO VIDEOGIOCHI + DEEP SEARCH ---
+        # --- PROMPT AGGIORNATO PER POPUP E EPISODI ---
         prompt = """
         IDENTIFICAZIONE OBBLIGATORIA: Analizza l'immagine e identifica esclusivamente Cartoni Animati, Serie TV o Film. 
         IGNORA CATEGORICAMENTE l'opzione 'Videogioco'. Se l'opera esiste in più formati, analizza la versione ANIMATA.
@@ -23,8 +32,8 @@ async def analyze_image(file: UploadFile = File(...)):
         PROCESSO DI VERIFICA (IMDb & Common Sense Media):
         1. Identifica il titolo esatto.
         2. Cerca attivamente le 'User Reviews' su IMDb e la sezione 'What Parents Need to Know' su Common Sense Media.
-        3. CASI CRITICI: Cerca specificamente menzioni di episodi speciali, scene disturbanti o contenuti 'horror' (es. Bread Barbershop ha episodi con atmosfere horror che non compaiono nella descrizione standard).
-        4. Se trovi segnalazioni di genitori su scene di paura, il rating 'paura' deve riflettere il picco massimo dell'opera, non la media.
+        3. CASI CRITICI: Cerca specificamente menzioni di episodi speciali, scene disturbanti o contenuti 'horror'.
+        4. Se trovi segnalazioni di genitori su scene di paura, il rating 'paura' deve riflettere il picco massimo dell'opera.
 
         STRUTTURA JSON (NON AGGIUNGERE ALTRO TESTO):
         {
@@ -32,28 +41,31 @@ async def analyze_image(file: UploadFile = File(...)):
             "dettagli": {
                 "titolo": "TITOLO_UFFICIALE_IMDB",
                 "eta_consigliata": "X+",
-                "riassunto": "Sintesi che includa avvertimenti sulle puntate particolari",
-                "cover_url": null
+                "riassunto": "Sintesi breve dell'opera",
+                "cover_url": "URL_LOCANDINA_SE_DISPONIBILE"
             },
             "ratings": {
-                "violenza": 0-5,
-                "linguaggio": 0-5,
-                "inclusivita": 0-5,
-                "paura": 0-5
+                "violenza": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
+                "linguaggio": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
+                "inclusivita": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
+                "paura": {"voto": 0-5, "motivo": "Spiegazione breve per popup"}
             },
-            "alert_sicurezza": "DETTAGLIA QUI LE PUNTATE O LE SCENE SPECIFICHE SEGNALATE DAI GENITORI (es. scene horror o tensione)"
+            "episodi_critici": [
+                {"titolo": "Titolo Episodio", "descrizione": "Perché è critico"}
+            ],
+            "alert_sicurezza": "Consiglio riassuntivo finale per il genitore"
         }
         """
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.0-flash-exp", # Usato modello stabile (cambia in 2.5-flash-lite se disponibile nel tuo piano)
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.0 # Forza la massima precisione e zero creatività
+                temperature=0.0
             )
         )
 
