@@ -16,31 +16,35 @@ async def analyze_image(file: UploadFile = File(...)):
         image_data = await file.read()
         
         # --- PROMPT BLINDATO: NO VIDEOGIOCHI + DEEP SEARCH ---
-prompt = """
-        Analizza l'opera identificata (Solo Film/Cartoni).
-        
-        PROTOCOLLO DI ANALISI DETTAGLIATA:
-        1. CATEGORIE: Per Violenza, Linguaggio, Inclusività e Paura, identifica il motivo esatto del voto basandoti su IMDb Parental Guide e Common Sense Media.
-        2. EPISODI CRITICI: Trova i titoli degli episodi o le scene specifiche che hanno causato i rating più alti (es. la puntata horror di Bread Barbershop).
-        3. SPUNTI: Crea domande educative.
+        prompt = """
+        IDENTIFICAZIONE OBBLIGATORIA: Analizza l'immagine e identifica esclusivamente Cartoni Animati, Serie TV o Film. 
+        IGNORA CATEGORICAMENTE l'opzione 'Videogioco'. Se l'opera esiste in più formati, analizza la versione ANIMATA.
 
-        RISPONDI SOLO IN JSON CON QUESTA STRUTTURA:
+        PROCESSO DI VERIFICA (IMDb & Common Sense Media):
+        1. Identifica il titolo esatto.
+        2. Cerca attivamente le 'User Reviews' su IMDb e la sezione 'What Parents Need to Know' su Common Sense Media.
+        3. CASI CRITICI: Cerca specificamente menzioni di episodi speciali, scene disturbanti o contenuti 'horror' (es. Bread Barbershop ha episodi con atmosfere horror che non compaiono nella descrizione standard).
+        4. Se trovi segnalazioni di genitori su scene di paura, il rating 'paura' deve riflettere il picco massimo dell'opera, non la media.
+
+        STRUTTURA JSON (NON AGGIUNGERE ALTRO TESTO):
         {
-            "tipo_contenuto": "cartone animato",
-            "dettagli": { "titolo": "...", "eta_consigliata": "...", "riassunto": "..." },
-            "ratings": {
-                "violenza": {"voto": 0, "motivo": "..."},
-                "linguaggio": {"voto": 0, "motivo": "..."},
-                "inclusivita": {"voto": 0, "motivo": "..."},
-                "paura": {"voto": 0, "motivo": "..."}
+            "tipo_contenuto": "cartone animato" | "film", 
+            "dettagli": {
+                "titolo": "TITOLO_UFFICIALE_IMDB",
+                "eta_consigliata": "X+",
+                "riassunto": "Sintesi che includa avvertimenti sulle puntate particolari",
+                "cover_url": null
             },
-            "episodi_critici": [
-                {"titolo": "...", "descrizione": "..."}
-            ],
-            "alert_sicurezza": "...",
-            "spunti_conversazione": ["...", "..."]
+            "ratings": {
+                "violenza": 0-5,
+                "linguaggio": 0-5,
+                "inclusivita": 0-5,
+                "paura": 0-5
+            },
+            "alert_sicurezza": "DETTAGLIA QUI LE PUNTATE O LE SCENE SPECIFICHE SEGNALATE DAI GENITORI (es. scene horror o tensione)"
         }
         """
+
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[
