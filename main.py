@@ -58,7 +58,7 @@ async def analyze_image(file: UploadFile = File(...)):
         """
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp", # Usato modello stabile (cambia in 2.5-flash-lite se disponibile nel tuo piano)
+            model="gemini-2.5-flash-lite", # Usato modello stabile (cambia in 2.5-flash-lite se disponibile nel tuo piano)
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
