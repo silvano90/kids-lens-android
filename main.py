@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# Aggiunto CORS per evitare blocchi con l'App
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,48 +23,50 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # --- PROMPT AGGIORNATO PER POPUP E EPISODI ---
+        # PROMPT OTTIMIZZATO: Voti omogenei (Alto = Pericolo) + Sezione Episodi
         prompt = """
-        IDENTIFICAZIONE OBBLIGATORIA: Analizza l'immagine e identifica esclusivamente Cartoni Animati, Serie TV o Film. 
-        IGNORA CATEGORICAMENTE l'opzione 'Videogioco'. Se l'opera esiste in più formati, analizza la versione ANIMATA.
+        IDENTIFICAZIONE: Analizza l'immagine (Cartoni/Serie TV/Film). Escludi Videogiochi.
 
-        PROCESSO DI VERIFICA (IMDb & Common Sense Media):
-        1. Identifica il titolo esatto.
-        2. Cerca attivamente le 'User Reviews' su IMDb e la sezione 'What Parents Need to Know' su Common Sense Media.
-        3. CASI CRITICI: Cerca specificamente menzioni di episodi speciali, scene disturbanti o contenuti 'horror'.
-        4. Se trovi segnalazioni di genitori su scene di paura, il rating 'paura' deve riflettere il picco massimo dell'opera.
+        LOGICA RATING (Voto 0-5):
+        IMPORTANTE: Per tutti i driver, un voto ALTO (5) indica un contenuto CRITICO/NEGATIVO, un voto BASSO (0) indica un contenuto SICURO.
+        - violenza: 5 = molto violento.
+        - paura: 5 = molto spaventoso.
+        - linguaggio: 5 = linguaggio volgare/inappropriato.
+        - carenza_inclusivita: 5 = presenza di stereotipi, pregiudizi o totale mancanza di diversità. 0 = estremamente inclusivo e positivo.
 
-        STRUTTURA JSON (NON AGGIUNGERE ALTRO TESTO):
+        RICERCA EPISODI: Cerca attivamente su IMDb e Common Sense Media se esistono episodi specifici segnalati dai genitori per scene disturbanti o contenuti horror nascosti.
+
+        STRUTTURA JSON (SOLO JSON):
         {
             "tipo_contenuto": "cartone animato" | "film", 
             "dettagli": {
-                "titolo": "TITOLO_UFFICIALE_IMDB",
+                "titolo": "TITOLO_UFFICIALE",
                 "eta_consigliata": "X+",
-                "riassunto": "Sintesi breve dell'opera",
-                "cover_url": "URL_LOCANDINA_SE_DISPONIBILE"
+                "riassunto": "Sintesi dell'opera",
+                "cover_url": null
             },
             "ratings": {
-                "violenza": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
-                "linguaggio": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
-                "inclusivita": {"voto": 0-5, "motivo": "Spiegazione breve per popup"},
-                "paura": {"voto": 0-5, "motivo": "Spiegazione breve per popup"}
+                "violenza": {"voto": 0-5, "motivo": "..."},
+                "paura": {"voto": 0-5, "motivo": "..."},
+                "linguaggio": {"voto": 0-5, "motivo": "..."},
+                "carenza_inclusivita": {"voto": 0-5, "motivo": "Spiega se ci sono stereotipi (voto alto) o se è inclusivo (voto basso)"}
             },
             "episodi_critici": [
-                {"titolo": "Titolo Episodio", "descrizione": "Perché è critico"}
+                {"titolo": "Nome Episodio", "descrizione": "Spiega esattamente cosa succede di critico in questa puntata"}
             ],
-            "alert_sicurezza": "Consiglio riassuntivo finale per il genitore"
+            "alert_sicurezza": "Sintesi finale di attenzione per il genitore"
         }
         """
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite", # Usato modello stabile (cambia in 2.5-flash-lite se disponibile nel tuo piano)
+            model="gemini-2.5-flash-lite", 
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.0
+                temperature=0.0 
             )
         )
 
