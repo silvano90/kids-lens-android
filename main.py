@@ -23,16 +23,24 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        prompt = """
-        Analizza l'immagine (Cartone, Serie TV o Film). 
-        REGOLE JSON RIGIDE: 
-        1. Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
-        2. EPISODI CRITICI: Identifica 2-3 momenti specifici reali del contenuto che possono disturbare un bambino. Se non ricordi i titoli degli episodi, descrivi scene iconiche (es. 'La trasformazione del cattivo', 'La scena della tempesta'). NON LASCIARE VUOTO.
-        3. RATING: 0-5. 'carenza_inclusivita' indica presenza di stereotipi (5 = molti stereotipi).
+ prompt = """
+        Identifica ESCLUSIVAMENTE Cartoni, Serie TV o Film. IGNORA i videogiochi.
+        
+        PROTOCOLLO DI ANALISI:
+        1. Identifica il titolo su IMDb.
+        2. Analizza recensioni per genitori (tipo Common Sense Media) per trovare temi sensibili, stereotipi o scene disturbanti (es. horror nascosto in prodotti per bambini).
+        3. RATING (0 a 5): 
+           - violenza, paura, linguaggio: 5 = massimo pericolo/presenza.
+           - carenza_inclusivita: 5 = presenza forte di stereotipi negativi, sessismo o mancanza di diversità. 0 = contenuto inclusivo e moderno.
+        
+        REGOLE JSON RIGIDE:
+        - Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
+        - Non andare a capo nelle stringhe.
+        - EPISODI_CRITICI: Trova 2-3 momenti reali (es. 'La morte di...', 'La scena del bullismo'). Se non sai il titolo, descrivi la scena. NON LASCIARE VUOTO.
 
-        STRUTTURA JSON:
+        RISPONDI SOLO IN JSON:
         {
-            "tipo_contenuto": "...", 
+            "tipo_contenuto": "cartone animato", 
             "dettagli": {
                 "titolo": "...",
                 "eta_consigliata": "...",
@@ -40,21 +48,24 @@ async def analyze_image(file: UploadFile = File(...)):
                 "cover_url": null
             },
             "ratings": {
-                "violenza": {"voto": 0, "motivo": "..."},
-                "paura": {"voto": 0, "motivo": "..."},
-                "linguaggio": {"voto": 0, "motivo": "..."},
-                "carenza_inclusivita": {"voto": 0, "motivo": "..."}
+                "violenza": {"voto": 0, "motivo": "Perché questo voto"},
+                "paura": {"voto": 0, "motivo": "Perché questo voto"},
+                "linguaggio": {"voto": 0, "motivo": "Perché questo voto"},
+                "carenza_inclusivita": {"voto": 0, "motivo": "Spiega quali stereotipi o perché è inclusivo"}
             },
             "episodi_critici": [
-                {"titolo": "Titolo Scena/Episodio", "descrizione": "Dettaglio del perché va attenzionato"}
+                {"titolo": "Titolo o Scena", "descrizione": "Spiegazione dettagliata del pericolo"}
             ],
-            "alert_sicurezza": "...",
-            "spunti_conversazione": ["...", "..."]
+            "alert_sicurezza": "Sintesi dei rischi horror o comportamentali",
+            "spunti_conversazione": [
+                "Domanda per stimolare il pensiero critico",
+                "Domanda per gestire eventuali paure"
+            ]
         }
         """
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash-lite", 
+            model="gemini-2.5-flash-lite", 
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
