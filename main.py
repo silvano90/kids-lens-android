@@ -24,61 +24,55 @@ async def analyze_image(file: UploadFile = File(...)):
         image_data = await file.read()
         
         prompt = """
-        IDENTIFICAZIONE: Analizza l'immagine (Cartoni/Serie TV/Film). Escludi Videogiochi.
+        Analizza l'immagine (Cartone, Serie TV o Film). 
+        REGOLE JSON RIGIDE: 
+        1. Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
+        2. EPISODI CRITICI: Identifica 2-3 momenti specifici reali del contenuto che possono disturbare un bambino. Se non ricordi i titoli degli episodi, descrivi scene iconiche (es. 'La trasformazione del cattivo', 'La scena della tempesta'). NON LASCIARE VUOTO.
+        3. RATING: 0-5. 'carenza_inclusivita' indica presenza di stereotipi (5 = molti stereotipi).
 
-        LOGICA RATING (Voto 0-5):
-        IMPORTANTE: Per tutti i driver, un voto ALTO (5) indica un contenuto CRITICO/NEGATIVO, un voto BASSO (0) indica un contenuto SICURO.
-        - violenza: 5 = molto violento.
-        - paura: 5 = molto spaventoso.
-        - linguaggio: 5 = linguaggio volgare/inappropriato.
-        - carenza_inclusivita: 5 = presenza di stereotipi, pregiudizi o totale mancanza di diversità. 0 = estremamente inclusivo e positivo.
-
-        RICERCA EPISODI: Cerca attivamente su IMDb e Common Sense Media se esistono episodi specifici segnalati dai genitori per scene disturbanti o contenuti horror nascosti.
-
-        STRUTTURA JSON (SOLO JSON):
+        STRUTTURA JSON:
         {
-            "tipo_contenuto": "cartone animato" | "film", 
+            "tipo_contenuto": "...", 
             "dettagli": {
-                "titolo": "TITOLO_UFFICIALE",
-                "eta_consigliata": "X+",
-                "riassunto": "Sintesi dell'opera",
+                "titolo": "...",
+                "eta_consigliata": "...",
+                "riassunto": "...",
                 "cover_url": null
             },
             "ratings": {
-                "violenza": {"voto": 0-5, "motivo": "..."},
-                "paura": {"voto": 0-5, "motivo": "..."},
-                "linguaggio": {"voto": 0-5, "motivo": "..."},
-                "carenza_inclusivita": {"voto": 0-5, "motivo": "Spiega se ci sono stereotipi (voto alto) o se è inclusivo (voto basso)"}
+                "violenza": {"voto": 0, "motivo": "..."},
+                "paura": {"voto": 0, "motivo": "..."},
+                "linguaggio": {"voto": 0, "motivo": "..."},
+                "carenza_inclusivita": {"voto": 0, "motivo": "..."}
             },
             "episodi_critici": [
-                {"titolo": "Nome Episodio", "descrizione": "Spiega esattamente cosa succede di critico in questa puntata"}
+                {"titolo": "Titolo Scena/Episodio", "descrizione": "Dettaglio del perché va attenzionato"}
             ],
-            "alert_sicurezza": "Sintesi finale di attenzione per il genitore"
+            "alert_sicurezza": "...",
+            "spunti_conversazione": ["...", "..."]
         }
         """
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite", 
+            model="gemini-1.5-flash-lite", 
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.0 
+                temperature=0.2 
             )
         )
 
-        # Pulizia e Parsing
         try:
             return json.loads(response.text.strip())
         except json.JSONDecodeError:
-            # Fallback se l'AI mette i backticks ```json
             text = response.text.replace("```json", "").replace("```", "").strip()
             return json.loads(text)
 
     except Exception as e:
-        print(f"Errore: {e}")
+        print(f"Errore Backend: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
