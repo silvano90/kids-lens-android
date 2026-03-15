@@ -24,32 +24,36 @@ async def analyze_image(file: UploadFile = File(...)):
         image_data = await file.read()
         
         prompt = """
-        Analizza l'immagine e identifica Cartoni Animati, Serie TV o Film. 
-        REGOLE JSON RIGIDE: 
-        1. Non usare MAI virgolette doppie (") dentro i testi (es. riassunto o motivi), usa solo virgolette singole (').
-        2. Non andare mai a capo (\n) dentro le stringhe.
-        3. Rating 0-5: Alto = Pericolo/Negativo. 'carenza_inclusivita' 5 significa molti stereotipi, 0 significa perfetto.
+        IDENTIFICAZIONE: Analizza l'immagine (Cartoni/Serie TV/Film). Escludi Videogiochi.
 
-        STRUTTURA JSON:
+        LOGICA RATING (Voto 0-5):
+        IMPORTANTE: Per tutti i driver, un voto ALTO (5) indica un contenuto CRITICO/NEGATIVO, un voto BASSO (0) indica un contenuto SICURO.
+        - violenza: 5 = molto violento.
+        - paura: 5 = molto spaventoso.
+        - linguaggio: 5 = linguaggio volgare/inappropriato.
+        - carenza_inclusivita: 5 = presenza di stereotipi, pregiudizi o totale mancanza di diversità. 0 = estremamente inclusivo e positivo.
+
+        RICERCA EPISODI: Cerca attivamente su IMDb e Common Sense Media se esistono episodi specifici segnalati dai genitori per scene disturbanti o contenuti horror nascosti.
+
+        STRUTTURA JSON (SOLO JSON):
         {
-            "tipo_contenuto": "cartone animato", 
+            "tipo_contenuto": "cartone animato" | "film", 
             "dettagli": {
-                "titolo": "TITOLO",
+                "titolo": "TITOLO_UFFICIALE",
                 "eta_consigliata": "X+",
-                "riassunto": "Sintesi senza virgolette doppie",
+                "riassunto": "Sintesi dell'opera",
                 "cover_url": null
             },
             "ratings": {
-                "violenza": {"voto": 0, "motivo": "testo"},
-                "paura": {"voto": 0, "motivo": "testo"},
-                "linguaggio": {"voto": 0, "motivo": "testo"},
-                "carenza_inclusivita": {"voto": 0, "motivo": "testo"}
+                "violenza": {"voto": 0-5, "motivo": "..."},
+                "paura": {"voto": 0-5, "motivo": "..."},
+                "linguaggio": {"voto": 0-5, "motivo": "..."},
+                "carenza_inclusivita": {"voto": 0-5, "motivo": "Spiega se ci sono stereotipi (voto alto) o se è inclusivo (voto basso)"}
             },
             "episodi_critici": [
-                {"titolo": "Episodio X", "descrizione": "Perché è critico"}
+                {"titolo": "Nome Episodio", "descrizione": "Spiega esattamente cosa succede di critico in questa puntata"}
             ],
-            "alert_sicurezza": "Sintesi finale",
-            "spunti_conversazione": ["domanda 1", "domanda 2"]
+            "alert_sicurezza": "Sintesi finale di attenzione per il genitore"
         }
         """
 
