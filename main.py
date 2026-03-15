@@ -23,43 +23,38 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-        # PROMPT OTTIMIZZATO: Voti omogenei (Alto = Pericolo) + Sezione Episodi
         prompt = """
-        IDENTIFICAZIONE: Analizza l'immagine (Cartoni/Serie TV/Film). Escludi Videogiochi.
+        Analizza l'immagine e identifica Cartoni Animati, Serie TV o Film. 
+        REGOLE JSON RIGIDE: 
+        1. Non usare MAI virgolette doppie (") dentro i testi (es. riassunto o motivi), usa solo virgolette singole (').
+        2. Non andare mai a capo (\n) dentro le stringhe.
+        3. Rating 0-5: Alto = Pericolo/Negativo. 'carenza_inclusivita' 5 significa molti stereotipi, 0 significa perfetto.
 
-        LOGICA RATING (Voto 0-5):
-        IMPORTANTE: Per tutti i driver, un voto ALTO (5) indica un contenuto CRITICO/NEGATIVO, un voto BASSO (0) indica un contenuto SICURO.
-        - violenza: 5 = molto violento.
-        - paura: 5 = molto spaventoso.
-        - linguaggio: 5 = linguaggio volgare/inappropriato.
-        - carenza_inclusivita: 5 = presenza di stereotipi, pregiudizi o totale mancanza di diversità. 0 = estremamente inclusivo e positivo.
-
-        RICERCA EPISODI: Cerca attivamente su IMDb e Common Sense Media se esistono episodi specifici segnalati dai genitori per scene disturbanti o contenuti horror nascosti.
-
-        STRUTTURA JSON (SOLO JSON):
+        STRUTTURA JSON:
         {
-            "tipo_contenuto": "cartone animato" | "film", 
+            "tipo_contenuto": "cartone animato", 
             "dettagli": {
-                "titolo": "TITOLO_UFFICIALE",
+                "titolo": "TITOLO",
                 "eta_consigliata": "X+",
-                "riassunto": "Sintesi dell'opera",
+                "riassunto": "Sintesi senza virgolette doppie",
                 "cover_url": null
             },
             "ratings": {
-                "violenza": {"voto": 0-5, "motivo": "..."},
-                "paura": {"voto": 0-5, "motivo": "..."},
-                "linguaggio": {"voto": 0-5, "motivo": "..."},
-                "carenza_inclusivita": {"voto": 0-5, "motivo": "Spiega se ci sono stereotipi (voto alto) o se è inclusivo (voto basso)"}
+                "violenza": {"voto": 0, "motivo": "testo"},
+                "paura": {"voto": 0, "motivo": "testo"},
+                "linguaggio": {"voto": 0, "motivo": "testo"},
+                "carenza_inclusivita": {"voto": 0, "motivo": "testo"}
             },
             "episodi_critici": [
-                {"titolo": "Nome Episodio", "descrizione": "Spiega esattamente cosa succede di critico in questa puntata"}
+                {"titolo": "Episodio X", "descrizione": "Perché è critico"}
             ],
-            "alert_sicurezza": "Sintesi finale di attenzione per il genitore"
+            "alert_sicurezza": "Sintesi finale",
+            "spunti_conversazione": ["domanda 1", "domanda 2"]
         }
         """
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash-lite", 
+            model="gemini-2.0-flash-lite", 
             contents=[
                 prompt,
                 types.Part.from_bytes(data=image_data, mime_type=file.content_type)
@@ -70,7 +65,13 @@ async def analyze_image(file: UploadFile = File(...)):
             )
         )
 
-        return json.loads(response.text)
+        # Pulizia e Parsing
+        try:
+            return json.loads(response.text.strip())
+        except json.JSONDecodeError:
+            # Fallback se l'AI mette i backticks ```json
+            text = response.text.replace("```json", "").replace("```", "").strip()
+            return json.loads(text)
 
     except Exception as e:
         print(f"Errore: {e}")
