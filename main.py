@@ -1,4 +1,4 @@
-import os
+eimport os
 import json
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from google import genai
@@ -32,11 +32,11 @@ async def analyze_image(file: UploadFile = File(...)):
                 3. RATING (0 a 5): 
                 - violenza, paura, linguaggio: 5 = massimo pericolo/presenza.
                 - carenza_inclusivita: 5 = presenza forte di stereotipi negativi, sessismo o mancanza di diversità. 0 = contenuto inclusivo e moderno.
-                
+                per giustificare il rating che assegni devi scavare nelle recensioni dei genitori ed estrapolare commenti specifici anche a episodi specifici (e.g. se in un cartone normalmente tranquillo c'è un episodio molto spaventoso o disturbate sicuramente qualche genitore lo ha commentato e di conseguenza il voto di paura sale e nella motivazione va spiegato il perchè. Questo episodio finirà anche fra quelli da attenzionare nell'apposita sezione. Tale approccio va esteso anche agli altri driver in maniera logica)
                 REGOLE JSON RIGIDE:
                 - Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
                 - Non andare a capo nelle stringhe.
-                - EPISODI_CRITICI: Trova 2-3 momenti reali (es. 'La morte di...', 'La scena del bullismo'). Se non sai il titolo, descrivi la scena. NON LASCIARE VUOTO.
+                - EPISODI_CRITICI: Trova 2-3 momenti reali (es. 'La morte di...', 'La scena del bullismo'). Se non sai il titolo, descrivi la scena. NON LASCIARE VUOTO. Per gli episodi critici cerca su IMDB o in common sense media fra le recensioni dei genitori
 
                 RISPONDI SOLO IN JSON:
                 {
