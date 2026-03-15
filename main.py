@@ -23,46 +23,46 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
-    prompt = """
-        Identifica ESCLUSIVAMENTE Cartoni, Serie TV o Film. IGNORA i videogiochi.
-        
-        PROTOCOLLO DI ANALISI:
-        1. Identifica il titolo su IMDb.
-        2. Analizza recensioni per genitori (tipo Common Sense Media) per trovare temi sensibili, stereotipi o scene disturbanti (es. horror nascosto in prodotti per bambini).
-        3. RATING (0 a 5): 
-           - violenza, paura, linguaggio: 5 = massimo pericolo/presenza.
-           - carenza_inclusivita: 5 = presenza forte di stereotipi negativi, sessismo o mancanza di diversità. 0 = contenuto inclusivo e moderno.
-        
-        REGOLE JSON RIGIDE:
-        - Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
-        - Non andare a capo nelle stringhe.
-        - EPISODI_CRITICI: Trova 2-3 momenti reali (es. 'La morte di...', 'La scena del bullismo'). Se non sai il titolo, descrivi la scena. NON LASCIARE VUOTO.
+        prompt = """
+                Identifica ESCLUSIVAMENTE Cartoni, Serie TV o Film. IGNORA i videogiochi.
+                
+                PROTOCOLLO DI ANALISI:
+                1. Identifica il titolo su IMDb.
+                2. Analizza recensioni per genitori (tipo Common Sense Media) per trovare temi sensibili, stereotipi o scene disturbanti (es. horror nascosto in prodotti per bambini).
+                3. RATING (0 a 5): 
+                - violenza, paura, linguaggio: 5 = massimo pericolo/presenza.
+                - carenza_inclusivita: 5 = presenza forte di stereotipi negativi, sessismo o mancanza di diversità. 0 = contenuto inclusivo e moderno.
+                
+                REGOLE JSON RIGIDE:
+                - Non usare MAI virgolette doppie (") nei testi, usa solo virgolette singole (').
+                - Non andare a capo nelle stringhe.
+                - EPISODI_CRITICI: Trova 2-3 momenti reali (es. 'La morte di...', 'La scena del bullismo'). Se non sai il titolo, descrivi la scena. NON LASCIARE VUOTO.
 
-        RISPONDI SOLO IN JSON:
-        {
-            "tipo_contenuto": "cartone animato", 
-            "dettagli": {
-                "titolo": "...",
-                "eta_consigliata": "...",
-                "riassunto": "...",
-                "cover_url": null
-            },
-            "ratings": {
-                "violenza": {"voto": 0, "motivo": "Perché questo voto"},
-                "paura": {"voto": 0, "motivo": "Perché questo voto"},
-                "linguaggio": {"voto": 0, "motivo": "Perché questo voto"},
-                "carenza_inclusivita": {"voto": 0, "motivo": "Spiega quali stereotipi o perché è inclusivo"}
-            },
-            "episodi_critici": [
-                {"titolo": "Titolo o Scena", "descrizione": "Spiegazione dettagliata del pericolo"}
-            ],
-            "alert_sicurezza": "Sintesi dei rischi horror o comportamentali",
-            "spunti_conversazione": [
-                "Domanda per stimolare il pensiero critico",
-                "Domanda per gestire eventuali paure"
-            ]
-        }
-        """
+                RISPONDI SOLO IN JSON:
+                {
+                    "tipo_contenuto": "cartone animato", 
+                    "dettagli": {
+                        "titolo": "...",
+                        "eta_consigliata": "...",
+                        "riassunto": "...",
+                        "cover_url": null
+                    },
+                    "ratings": {
+                        "violenza": {"voto": 0, "motivo": "Perché questo voto"},
+                        "paura": {"voto": 0, "motivo": "Perché questo voto"},
+                        "linguaggio": {"voto": 0, "motivo": "Perché questo voto"},
+                        "carenza_inclusivita": {"voto": 0, "motivo": "Spiega quali stereotipi o perché è inclusivo"}
+                    },
+                    "episodi_critici": [
+                        {"titolo": "Titolo o Scena", "descrizione": "Spiegazione dettagliata del pericolo"}
+                    ],
+                    "alert_sicurezza": "Sintesi dei rischi horror o comportamentali",
+                    "spunti_conversazione": [
+                        "Domanda per stimolare il pensiero critico",
+                        "Domanda per gestire eventuali paure"
+                    ]
+                }
+                """
 
         response = client.models.generate_content(
             model="gemini-2.5-flash-lite", 
