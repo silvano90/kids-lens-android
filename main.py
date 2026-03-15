@@ -23,7 +23,7 @@ async def analyze_image(file: UploadFile = File(...)):
     try:
         image_data = await file.read()
         
- prompt = """
+    prompt = """
         Identifica ESCLUSIVAMENTE Cartoni, Serie TV o Film. IGNORA i videogiochi.
         
         PROTOCOLLO DI ANALISI:
